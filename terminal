@@ -1,0 +1,6 @@
+echo Hello 
+
+echo "Stuff stuff stuff" > newfile.awesome
+
+nano newfile.awesome
+
