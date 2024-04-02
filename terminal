@@ -4,3 +4,6 @@ echo "Stuff stuff stuff" > newfile.awesome
 
 nano newfile.awesome
 
+control + x + y + enter / to save your file
+
+vim newfile.awesome
