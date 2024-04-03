@@ -1,3 +1,13 @@
+sudo apt update
+sudo apt install finger
+
+
+
+//================================================================
+
+
+
+
 echo Hello 
 
 echo "Stuff stuff stuff" > newfile.awesome
