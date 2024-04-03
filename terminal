@@ -2,6 +2,8 @@ sudo apt update
 sudo apt install finger
 
 finger nemanja
+whatis finger
+which finger  
 
 man finger
 
