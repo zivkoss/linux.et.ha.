@@ -19,6 +19,7 @@ man finger
 //=================================================================
 
 wget (download something) link.. https://raw.githubusercontent.com/theNetworkChuck/.....
+curl (download something) link.. https://raw.githubusercontent.com/theNetworkChuck/.....
 //==================================================================
 
 
@@ -27,6 +28,24 @@ wget (download something) link.. https://raw.githubusercontent.com/theNetworkChu
 echo Hello 
 
 echo "Stuff stuff stuff" > newfile.awesome
+
+
+//====================================================================
+sudo apt install net-tools
+ifconfig
+ip address
+
+ip address | grep eth0
+ip address | grep eth0 | grep inet
+
+
+
+
+
+
+
+
+//====================================================================
 
 nano newfile.awesome
 
