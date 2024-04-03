@@ -1,6 +1,10 @@
 sudo apt update
 sudo apt install finger
 
+finger nemanja
+
+man finger
+
 
 
 //=================================================================
