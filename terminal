@@ -71,8 +71,23 @@ sudo apt-get install  ufw
 ufw status
 sudo ufw allow 80 
 sudo ufw enable 
+
+
+
 uname = about sustem
 uname -a
-sudo apt-get install neofetch
+sudo apt-get install neofetc
+neofetch
+sudo apt-get install bc
+echo "4*9" | bc
+free = how much memory...
+df 
+df -H
+ps 
+ps -aux
+top
+sudo apt-get install htop
+htop
+
 
 
