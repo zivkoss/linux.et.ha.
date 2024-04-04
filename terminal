@@ -48,8 +48,10 @@ ping -c 5 networkchuck.com
 ping -c 5 -s 500 networkchuck.com
 traceroute networkchuck.com
 netstat
+netstat -tulpn  
 
-
+// more modern version is
+ss 
 
 
 
