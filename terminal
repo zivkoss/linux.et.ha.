@@ -64,4 +64,15 @@ nano newfile.awesome
 control + x + y + enter / to save your file
 
 vim newfile.awesome
- 
+
+//=======================================================
+
+sudo apt-get install  ufw
+ufw status
+sudo ufw allow 80 
+sudo ufw enable 
+uname = about sustem
+uname -a
+sudo apt-get install neofetch
+
+
