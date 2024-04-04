@@ -52,6 +52,7 @@ netstat -tulpn
 
 // more modern version is
 ss 
+ss -tulpn  
 
 
 
