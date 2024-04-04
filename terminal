@@ -88,6 +88,36 @@ ps -aux
 top
 sudo apt-get install htop
 htop
+sudo systemctl status apache2
 
+
+//==========================================
+//LEARN BASH!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+echo "Hi Mom"
+nano himom.sh
+
+bash himom.sh
+#!/bin/bash 
+//========================================
+
+#!/bin/bash           
+
+echo "Hi Mom"
+
+sleep 3 
+
+echo "Uh uh"
+
+sleep 3
+
+echo "Oh wow"
+
+sleep 3 
+
+echo "I can't belive that"
+
+echo "Bye, love you too"
+
+  
 
 
