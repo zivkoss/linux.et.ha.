@@ -128,6 +128,16 @@ y enter
 https://sandbox.browser.networkchuck.com/#/kasm/a32d0035-301d-441e-9091-01599bfce0db 
 
 
+sudo apt-get install iftop 
+iftop //= permission denied to run?
+//interface: eth0
+//IP address is: 10.0.2.15
+//MAC address is: 08:00:27:d9:ec:fc
+//pcap_open_live(eth0): eth0: You don't have permission to capture on that device (socket: Operation not permitted)
+            
+
+sudo apt-get install hping3
+
 
 
 
