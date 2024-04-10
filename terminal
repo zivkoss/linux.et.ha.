@@ -139,6 +139,25 @@ iftop //= permission denied to run?
 sudo apt-get install hping3
 
 
+///=============================
+
+
+// network set 
+
+iwconfig   
+
+service NetworkManager restart
+
+
+//===============================
+sudo apt install set
+
+// than to start tool,
+
+sudo setoolkit    
+
+
+
 
 
 
