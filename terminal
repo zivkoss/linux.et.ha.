@@ -160,6 +160,37 @@ sudo setoolkit
 sudo apt install wireshark
 sudo wireshark  
 
+//========
+sudo apt install john
+john --help
+
+//========================
+sudo sqlmap
+//==========
+
+
+sudo aircrack-ng
+aircrack-ng -u
+//==========================
+sudo apt install netcat
+sudo nc 1.1.1.1    
+
+//===========
+
+ sudo burpsuite 
+nmap
+
+//================
+sudo apt install nikto
+
+//==================
+
+sudo msfconsole
+search windows
+
+
+
+
 
 
 
