@@ -188,7 +188,10 @@ sudo apt install nikto
 sudo msfconsole
 search windows
 
+//===================
 
+
+ proxychains nmap -sT -p 80,443 91.187.141.133
 
 
 
