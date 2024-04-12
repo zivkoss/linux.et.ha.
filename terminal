@@ -194,6 +194,11 @@ search windows
  proxychains nmap -sT -p 80,443 91.187.141.133
 
 
+search vnc linux
+search vnc login 
+
+
+
 
 
 
