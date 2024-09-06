@@ -144,7 +144,7 @@ sudo apt-get install hping3
 
 // network set 
 
-iwconfig   
+ifconfig   
 
 service NetworkManager restart
 
