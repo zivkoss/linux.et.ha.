@@ -6,7 +6,7 @@ sudo apt install finger
 finger nemanja
 whatis finger
 which finger  
-whereis finger/
+whereis finger//
 
 
 //========================
