@@ -11,3 +11,11 @@ ls -la /tmp/
 
 apt update && apt upgrade
 
+apt update && apt upgrade
+
+netstat -ano     
+
+ip r
+ip a 
+ip n
+
