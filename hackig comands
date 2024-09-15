@@ -19,3 +19,5 @@ ip r
 ip a 
 ip n
 
+apt install python3-pip
+
