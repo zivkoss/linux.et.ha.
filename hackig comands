@@ -17,16 +17,20 @@ netstat -ano
 
 ip r
 ip a 
+ip n
+
+//==============================install new tool
 
 
 
 
+apt install python3-pip
 
+
+cd /opt
 
 
 git clone https://github.com/Dewalt-arch/pimpmykali.git
 
-ip n
-
-apt install python3-pip
+cd pimpmykali
 
