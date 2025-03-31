@@ -35,3 +35,7 @@ git clone https://github.com/Dewalt-arch/pimpmykali.git
 
 cd pimpmykali
 
+//==================
+nmap -sT edless.horse 
+
+
