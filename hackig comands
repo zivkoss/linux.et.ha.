@@ -36,6 +36,14 @@ git clone https://github.com/Dewalt-arch/pimpmykali.git
 cd pimpmykali
 
 //==================
+
+
+sudo  nano /etc/proxychains4.conf 
+
+sudo apt install tor  
+
 nmap -sT edless.horse 
+
+
 
 
