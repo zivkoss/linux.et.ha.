@@ -23,7 +23,7 @@ ip n
 //==============================install new tool
 
 
-
+// https://dnsleaktest.com/
 
 apt install python3-pip
 
