@@ -1,2 +1,3 @@
 nmap -D RND:10 -p80 scanme.nmap.org
 
+sudo msfconsole 
