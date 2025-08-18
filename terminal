@@ -211,6 +211,9 @@ git clone https://github.com/sundowndev/PhoneInfoga
 new adress: https://github.com/techchipnet/hound.git
 
 
+apt-get -y install php unzip git wget
+
+
 
 
 
