@@ -178,3 +178,545 @@ class Digitron(tk.Tk):
 if __name__ == "__main__":
     app = Digitron()
     app.mainloop()
+
+
+
+
+#=========
+
+
+
+
+
+
+
+
+
+
+
+#!/usr/bin/env python3
+# sah.py
+# Jednostavan CLI šah: podržava poteze u formatu e2e4, promociju npr. e7e8q
+# Pravila: svi potezi, en-passant, rokada, promocija, detekcija šah/šah-mat/pat.
+# Nije engine — igra dva ljudska igrača naizmenično.
+
+from copy import deepcopy
+
+FILES = "abcdefgh"
+RANKS = "12345678"
+
+def sq_to_idx(sq):
+    if len(sq) != 2: raise ValueError("Nevažeća polje")
+    file = FILES.index(sq[0])
+    rank = 8 - int(sq[1])
+    return rank, file
+
+def idx_to_sq(r, c):
+    return FILES[c] + str(8 - r)
+
+class Board:
+    def __init__(self):
+        # 8x8 board: uppercase = White, lowercase = Black, '.' = empty
+        self.board = [
+            list("rnbqkbnr"),
+            list("pppppppp"),
+            list("........"),
+            list("........"),
+            list("........"),
+            list("........"),
+            list("PPPPPPPP"),
+            list("RNBQKBNR"),
+        ]
+        self.white_to_move = True
+        # castling rights: [white_kingside, white_queenside, black_kingside, black_queenside]
+        self.castling = [True, True, True, True]
+        self.en_passant = None  # square like 'e3' where en-passant capture is possible
+        self.halfmove_clock = 0
+        self.fullmove_number = 1
+        self.move_history = []  # history of states for undo / informational
+        # Precompute piece move deltas where useful
+        self.directions = {
+            'N': [(-2,-1),(-2,1),(-1,-2),(-1,2),(1,-2),(1,2),(2,-1),(2,1)],
+            'B': [(-1,-1),(-1,1),(1,-1),(1,1)],
+            'R': [(-1,0),(1,0),(0,-1),(0,1)],
+            'Q': [(-1,-1),(-1,1),(1,-1),(1,1),(-1,0),(1,0),(0,-1),(0,1)],
+            'K': [(-1,-1),(-1,1),(1,-1),(1,1),(-1,0),(1,0),(0,-1),(0,1)],
+        }
+
+    def clone_state(self):
+        # return a deep copy of all stateful attributes for undo/validation
+        return (deepcopy(self.board), self.white_to_move, self.castling[:], self.en_passant,
+                self.halfmove_clock, self.fullmove_number)
+
+    def restore_state(self, state):
+        (self.board, self.white_to_move, self.castling, self.en_passant,
+         self.halfmove_clock, self.fullmove_number) = (deepcopy(state[0]), state[1], state[2][:], state[3],
+                                                      state[4], state[5])
+
+    def piece_at(self, r, c):
+        return self.board[r][c]
+
+    def set_piece(self, r, c, p):
+        self.board[r][c] = p
+
+    def in_bounds(self, r, c):
+        return 0 <= r < 8 and 0 <= c < 8
+
+    def is_white(self, piece):
+        return piece != '.' and piece.isupper()
+
+    def is_black(self, piece):
+        return piece != '.' and piece.islower()
+
+    def same_color(self, piece, white_turn):
+        if piece == '.': return False
+        return piece.isupper() == white_turn
+
+    def print_board(self):
+        print()
+        for r in range(8):
+            print(8-r, end='  ')
+            for c in range(8):
+                ch = self.board[r][c]
+                print(ch if ch!='.' else '.', end=' ')
+            print()
+        print("\n   " + " ".join(list(FILES)))
+        print()
+        print("Na potezu:", "white" if self.white_to_move else "black")
+        rights = []
+        if self.castling[0]: rights.append("K")
+        if self.castling[1]: rights.append("Q")
+        if self.castling[2]: rights.append("k")
+        if self.castling[3]: rights.append("q")
+        print("Rokada:", "".join(rights) if rights else "-",
+              "En-passant:", self.en_passant if self.en_passant else "-",
+              "Broj poteza (full):", self.fullmove_number)
+        print()
+
+    def find_king(self, white):
+        target = 'K' if white else 'k'
+        for r in range(8):
+            for c in range(8):
+                if self.board[r][c] == target:
+                    return (r, c)
+        return None
+
+    def is_attacked(self, r, c, by_white):
+        # is square (r,c) attacked by color by_white?
+        # check pawns
+        if by_white:
+            pawns = [(-1,-1), (-1,1)]
+            for dr,dc in pawns:
+                rr,cc = r+dr, c+dc
+                if self.in_bounds(rr,cc) and self.board[rr][cc] == 'P':
+                    return True
+        else:
+            pawns = [(1,-1),(1,1)]
+            for dr,dc in pawns:
+                rr,cc = r+dr, c+dc
+                if self.in_bounds(rr,cc) and self.board[rr][cc] == 'p':
+                    return True
+        # knights
+        for dr,dc in self.directions['N']:
+            rr,cc = r+dr, c+dc
+            if self.in_bounds(rr,cc):
+                p = self.board[rr][cc]
+                if p != '.' and ((p=='N' if by_white else p=='n')):
+                    return True
+        # sliding pieces: bishops/queens (diagonals)
+        for dr,dc in self.directions['B']:
+            rr,cc = r+dr, c+dc
+            while self.in_bounds(rr,cc):
+                p = self.board[rr][cc]
+                if p != '.':
+                    if by_white and p in ('B','Q'): return True
+                    if (not by_white) and p in ('b','q'): return True
+                    break
+                rr += dr; cc += dc
+        # rooks/queens (orthogonal)
+        for dr,dc in self.directions['R']:
+            rr,cc = r+dr, c+dc
+            while self.in_bounds(rr,cc):
+                p = self.board[rr][cc]
+                if p != '.':
+                    if by_white and p in ('R','Q'): return True
+                    if (not by_white) and p in ('r','q'): return True
+                    break
+                rr += dr; cc += dc
+        # king
+        for dr,dc in self.directions['K']:
+            rr,cc = r+dr, c+dc
+            if self.in_bounds(rr,cc):
+                p = self.board[rr][cc]
+                if p != '.':
+                    if by_white and p == 'K': return True
+                    if (not by_white) and p == 'k': return True
+        return False
+
+    def in_check(self, white):
+        pos = self.find_king(white)
+        if not pos: return False
+        r,c = pos
+        return self.is_attacked(r,c, not white)  # attacked by opponent
+
+    def generate_moves_for_square(self, r, c):
+        # generate pseudo-legal moves (not checking for leaving king in check)
+        piece = self.board[r][c]
+        if piece == '.': return []
+        white = piece.isupper()
+        moves = []
+        p = piece.upper()
+        if p == 'P':
+            dir = -1 if white else 1
+            start_rank = 6 if white else 1
+            # forward one
+            if self.in_bounds(r+dir, c) and self.board[r+dir][c] == '.':
+                moves.append((r,c,r+dir,c))
+                # forward two from start
+                if r == start_rank and self.board[r+2*dir][c] == '.':
+                    moves.append((r,c,r+2*dir,c))
+            # captures
+            for dc in (-1,1):
+                rr,cc = r+dir, c+dc
+                if self.in_bounds(rr,cc):
+                    tgt = self.board[rr][cc]
+                    if tgt != '.' and (tgt.isupper() != white):
+                        moves.append((r,c,rr,cc))
+            # en passant
+            if self.en_passant:
+                try:
+                    ep_r, ep_c = sq_to_idx(self.en_passant)
+                except:
+                    ep_r, ep_c = None, None
+                # en passant square is empty but capture from adjacent pawn
+                if ep_r is not None:
+                    # en-passant target square is the square behind the pawn that moved two
+                    if ep_r == r+dir and abs(ep_c - c) == 1:
+                        # ensure an opponent pawn is on r,ep_c (the pawn that moved 2)
+                        opp_r, opp_c = r, ep_c
+                        if self.in_bounds(opp_r, opp_c):
+                            opp = self.board[opp_r][opp_c]
+                            if opp.upper() == 'P' and (opp.isupper() != white):
+                                moves.append((r,c,ep_r,ep_c))
+        elif p == 'N':
+            for dr,dc in self.directions['N']:
+                rr,cc = r+dr, c+dc
+                if not self.in_bounds(rr,cc): continue
+                tgt = self.board[rr][cc]
+                if tgt == '.' or tgt.isupper() != white:
+                    moves.append((r,c,rr,cc))
+        elif p in ('B','R','Q'):
+            dirs = []
+            if p == 'B': dirs = self.directions['B']
+            if p == 'R': dirs = self.directions['R']
+            if p == 'Q': dirs = self.directions['Q']
+            for dr,dc in dirs:
+                rr,cc = r+dr, c+dc
+                while self.in_bounds(rr,cc):
+                    tgt = self.board[rr][cc]
+                    if tgt == '.':
+                        moves.append((r,c,rr,cc))
+                    else:
+                        if tgt.isupper() != white:
+                            moves.append((r,c,rr,cc))
+                        break
+                    rr += dr; cc += dc
+        elif p == 'K':
+            for dr,dc in self.directions['K']:
+                rr,cc = r+dr, c+dc
+                if not self.in_bounds(rr,cc): continue
+                tgt = self.board[rr][cc]
+                if tgt == '.' or tgt.isupper() != white:
+                    moves.append((r,c,rr,cc))
+            # castling (pseudo-legal: will verify king not in check and path not attacked elsewhere)
+            if white:
+                # king side
+                if self.castling[0]:
+                    if (self.board[7][5] == '.' and self.board[7][6] == '.' and
+                        not self.in_check(True) and
+                        not self.is_attacked(7,5,False) and not self.is_attacked(7,6,False)):
+                        moves.append((r,c,7,6))  # O-O
+                if self.castling[1]:
+                    if (self.board[7][1] == '.' and self.board[7][2] == '.' and self.board[7][3] == '.' and
+                        not self.in_check(True) and
+                        not self.is_attacked(7,2,False) and not self.is_attacked(7,3,False)):
+                        moves.append((r,c,7,2))  # O-O-O
+            else:
+                if self.castling[2]:
+                    if (self.board[0][5] == '.' and self.board[0][6] == '.' and
+                        not self.in_check(False) and
+                        not self.is_attacked(0,5,True) and not self.is_attacked(0,6,True)):
+                        moves.append((r,c,0,6))
+                if self.castling[3]:
+                    if (self.board[0][1] == '.' and self.board[0][2] == '.' and self.board[0][3] == '.' and
+                        not self.in_check(False) and
+                        not self.is_attacked(0,2,True) and not self.is_attacked(0,3,True)):
+                        moves.append((r,c,0,2))
+        return moves
+
+    def generate_all_legal_moves(self):
+        moves = []
+        for r in range(8):
+            for c in range(8):
+                p = self.board[r][c]
+                if p == '.': continue
+                if p.isupper() != self.white_to_move: continue
+                for mv in self.generate_moves_for_square(r,c):
+                    # make move on clone, ensure king not left in check
+                    state = self.clone_state()
+                    promotion = None
+                    # No promotion here; we will handle promotion elsewhere (moves that reach last rank)
+                    self.make_move_tuple(mv, pretend=True)
+                    if not self.in_check(not self.white_to_move):
+                        moves.append(mv)
+                    self.restore_state(state)
+        # Additionally, generate legal castling moves handled in generate_moves_for_square with checks
+        return moves
+
+    def make_move_tuple(self, mv, pretend=False, promotion_choice=None):
+        """
+        mv = (r1,c1,r2,c2)
+        pretend=True -> don't update move history counters (used for checking)
+        promotion_choice: 'q','r','b','n' if a pawn reaches last rank
+        Returns a dict with details for undo.
+        """
+        r1,c1,r2,c2 = mv
+        piece = self.board[r1][c1]
+        captured = self.board[r2][c2]
+        moveinfo = {
+            'mv': mv, 'piece': piece, 'captured': captured,
+            'castling': self.castling[:], 'en_passant': self.en_passant,
+            'halfmove': self.halfmove_clock, 'fullmove': self.fullmove_number
+        }
+        # reset en-passant by default
+        self.en_passant = None
+
+        # detect en-passant capture
+        if piece.upper() == 'P' and c1 != c2 and captured == '.' :
+            # must be en-passant capture of pawn behind target square
+            cap_r = r1
+            cap_c = c2
+            captured = self.board[cap_r][cap_c]
+            self.board[cap_r][cap_c] = '.'
+
+        # castling movement of rook
+        # White king from e1 (7,4) to g1 (7,6) => rook h1 (7,7) -> f1 (7,5)
+        # White queen side e1->c1 rook a1->d1 etc.
+        if piece == 'K' and (r1,c1) == (7,4) and (r2,c2) in ((7,6),(7,2)):
+            # king-side
+            if (r2,c2) == (7,6):
+                self.board[7][7], self.board[7][5] = '.', 'R'
+            else:
+                self.board[7][0], self.board[7][3] = '.', 'R'
+        if piece == 'k' and (r1,c1) == (0,4) and (r2,c2) in ((0,6),(0,2)):
+            if (r2,c2) == (0,6):
+                self.board[0][7], self.board[0][5] = '.', 'r'
+            else:
+                self.board[0][0], self.board[0][3] = '.', 'r'
+
+        # move piece
+        self.board[r1][c1] = '.'
+        placed = piece
+        # pawn double-move sets en-passant target
+        if piece.upper() == 'P' and abs(r2-r1) == 2:
+            ep_r = (r1 + r2) // 2
+            ep_sq = idx_to_sq(ep_r, c1)
+            self.en_passant = ep_sq
+        # promotion
+        if piece == 'P' and r2 == 0:
+            if not promotion_choice: promotion_choice = 'q'
+            placed = promotion_choice.upper()
+        if piece == 'p' and r2 == 7:
+            if not promotion_choice: promotion_choice = 'q'
+            placed = promotion_choice.lower()
+        self.board[r2][c2] = placed
+
+        # update castling rights if king or rook moved or rook captured
+        if piece == 'K':
+            self.castling[0] = self.castling[1] = False
+        if piece == 'k':
+            self.castling[2] = self.castling[3] = False
+        # rook moves/captures affect castling rights
+        # white rooks at a1(7,0) and h1(7,7)
+        if (r1,c1) == (7,0) or (r2,c2) == (7,0):
+            self.castling[1] = False
+        if (r1,c1) == (7,7) or (r2,c2) == (7,7):
+            self.castling[0] = False
+        if (r1,c1) == (0,0) or (r2,c2) == (0,0):
+            self.castling[3] = False
+        if (r1,c1) == (0,7) or (r2,c2) == (0,7):
+            self.castling[2] = False
+
+        # halfmove/fmmove counters
+        if not pretend:
+            if piece.upper() == 'P' or captured != '.':
+                self.halfmove_clock = 0
+            else:
+                self.halfmove_clock += 1
+            if not self.white_to_move:
+                self.fullmove_number += 1
+            self.white_to_move = not self.white_to_move
+
+            # record history
+            self.move_history.append(moveinfo)
+        else:
+            # when pretend, still return moveinfo so caller can restore
+            return moveinfo
+
+        return moveinfo
+
+    def undo_move(self):
+        if not self.move_history:
+            return
+        info = self.move_history.pop()
+        # revert state
+        self.restore_state((info['mv_state'] if 'mv_state' in info else deepcopy(self.board),
+                            not self.white_to_move, self.castling, self.en_passant,
+                            self.halfmove_clock, self.fullmove_number))
+        # but simpler: we stored earlier fields; do a full restore more explicitly
+        # We'll instead rebuild using stored fields
+        # We had stored initial fields in moveinfo: 'piece','captured','castling','en_passant','halfmove','fullmove'
+        mv = info['mv']
+        r1,c1,r2,c2 = mv
+        # revert move
+        self.board = deepcopy(info.get('board_before', self.board))
+        self.castling = info['castling']
+        self.en_passant = info['en_passant']
+        self.halfmove_clock = info['halfmove']
+        self.fullmove_number = info['fullmove']
+        self.white_to_move = not self.white_to_move
+
+    def legal_moves_list(self):
+        # return moves in human-readable form (e2e4)
+        moves = self.generate_all_legal_moves()
+        out = []
+        for m in moves:
+            out.append(idx_to_sq(m[0],m[1])+idx_to_sq(m[2],m[3]))
+        return sorted(out)
+
+    def parse_move_str(self, s):
+        s = s.strip().lower()
+        if len(s) < 4: raise ValueError("Potez mora biti najmanje 4 znaka (npr. e2e4)")
+        fromsq = s[0:2]
+        tosq = s[2:4]
+        promotion = s[4] if len(s)>=5 else None
+        r1,c1 = sq_to_idx(fromsq)
+        r2,c2 = sq_to_idx(tosq)
+        return (r1,c1,r2,c2,promotion)
+
+    def is_legal_move_str(self, s):
+        try:
+            r1,c1,r2,c2,prom = self.parse_move_str(s)
+        except Exception:
+            return False
+        # generate all legal moves tuples and compare
+        legal = self.generate_all_legal_moves()
+        for mv in legal:
+            if mv == (r1,c1,r2,c2):
+                # promotion handling: if pawn reaches last rank, ensure promotion specified or default queen allowed
+                piece = self.board[r1][c1]
+                if piece.upper() == 'P' and (r2==0 or r2==7):
+                    # allow if prom in (q,r,b,n) or None (defaults to q)
+                    if prom is None or prom in 'qrbn':
+                        return True
+                    else:
+                        return False
+                return True
+        return False
+
+    def play_move_str(self, s):
+        r1,c1,r2,c2,prom = self.parse_move_str(s)
+        mv = (r1,c1,r2,c2)
+        # validate!
+        legal = self.generate_all_legal_moves()
+        if mv not in legal:
+            raise ValueError("Nelegalan potez")
+        # Make move with promotion if needed
+        piece = self.board[r1][c1]
+        promotion_choice = None
+        if piece.upper() == 'P' and (r2==0 or r2==7):
+            if prom is None:
+                promotion_choice = 'q'
+            else:
+                if prom not in 'qrbn':
+                    raise ValueError("Neispravan izbor promocije")
+                promotion_choice = prom
+        # Save board snapshot to aid undo (simple)
+        moveinfo = {
+            'mv': mv,
+            'board_before': deepcopy(self.board),
+            'castling': self.castling[:],
+            'en_passant': self.en_passant,
+            'halfmove': self.halfmove_clock,
+            'fullmove': self.fullmove_number
+        }
+        self.make_move_tuple(mv, pretend=False, promotion_choice=promotion_choice)
+        # append board snapshot to history for undo
+        self.move_history[-1].update(moveinfo)
+
+    def game_status(self):
+        # returns 'ongoing', 'checkmate', 'stalemate'
+        legal = self.generate_all_legal_moves()
+        if legal:
+            return 'ongoing'
+        if self.in_check(self.white_to_move):
+            return 'checkmate'
+        else:
+            return 'stalemate'
+
+def main():
+    b = Board()
+    print("Dobrodošli u CLI šah!")
+    print("Unosite poteze u formatu e2e4, za promociju npr. e7e8q (q/r/b/n).")
+    print("Komanda 'moves' prikazuje sve legalne poteze, 'board' ispiše tablu, 'exit' ili 'quit' izlazi.")
+    while True:
+        b.print_board()
+        status = b.game_status()
+        if status == 'checkmate':
+            print("Šah-mat! Pobedio", "black" if b.white_to_move else "white")
+            break
+        if status == 'stalemate':
+            print("Pat (stalemate). Remi.")
+            break
+        # prompt
+        prompt = ("White" if b.white_to_move else "Black") + " > "
+        try:
+            cmd = input(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\nIzlaz.")
+            break
+        if not cmd:
+            continue
+        if cmd.lower() in ('exit','quit'):
+            break
+        if cmd.lower() == 'board':
+            b.print_board()
+            continue
+        if cmd.lower() == 'moves':
+            lm = b.legal_moves_list()
+            print("Legalni potezi:", " ".join(lm))
+            continue
+        if cmd.lower() == 'help':
+            print("Potezi: e2e4, g1f3, e7e8q (promocija). Komande: moves, board, exit")
+            continue
+        # try to play move
+        try:
+            if not b.is_legal_move_str(cmd):
+                print("Neispravan ili nelegalan potez. Upisite 'moves' za listu legalnih poteza.")
+                continue
+            b.play_move_str(cmd)
+        except Exception as e:
+            print("Greška:", e)
+            continue
+
+if __name__ == "__main__":
+    main()
+
+#Kratka uputstva i napomene:
+	•	Pokreni python3 sah.py u terminalu.
+	•	Unosi poteza koristeći koordinatni (UCI) format: e2e4, g8f6, itd.
+	•	Za promociju stavi znak promocije nakon poteza npr. e7e8q (q/r/b/n). Ako ne navedeš, podrazumeva se dama.
+	•	moves — ispiše sve legalne poteze za trenutnog igrača.
+	•	board — ponovo ispiše tablu.
+	•	Program prepoznaje en-passant i rokadu (ako su uslovi ispunjeni).
+	•	Ovo nije šahovski engine — nema računanja poteza AI protivnika; igraju dva igrača ručno.
