@@ -1,0 +1,180 @@
+# digitron.py
+import tkinter as tk
+from tkinter import font
+import ast
+import operator
+
+# --- Sigurno evaluiranje izraza ---
+# Dozvoljene operacije i čvorovi AST-a
+_allowed_operators = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+    ast.Mod: operator.mod,
+    ast.FloorDiv: operator.floordiv,
+}
+
+_allowed_nodes = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Num, ast.Constant, ast.Call)
+
+# Funkcija za sigurno izračunavanje izraza (float)
+def safe_eval(expr: str) -> float:
+    """
+    Parsira i izračunava matematički izraz ograničen na brojeve i osnovne operatore.
+    Podržani operatori: +, -, *, /, **, %, // i unarni +/-
+    Decimalni zarez može biti '.' ili ',' (',' se zamenjuje sa '.').
+    """
+    # normalizacija decimalnog zareza
+    expr = expr.replace(',', '.')
+    try:
+        tree = ast.parse(expr, mode='eval')
+    except Exception as e:
+        raise ValueError("Neispravan izraz")
+
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.BinOp):
+            left = _eval(node.left)
+            right = _eval(node.right)
+            op_type = type(node.op)
+            if op_type in _allowed_operators:
+                func = _allowed_operators[op_type]
+                try:
+                    return func(left, right)
+                except ZeroDivisionError:
+                    raise ValueError("Deljenje nulom")
+            raise ValueError("Operator nije dozvoljen")
+        if isinstance(node, ast.UnaryOp):
+            operand = _eval(node.operand)
+            op_type = type(node.op)
+            if op_type in _allowed_operators:
+                return _allowed_operators[op_type](operand)
+            raise ValueError("Unary operator nije dozvoljen")
+        if isinstance(node, ast.Constant):  # Python 3.8+
+            if isinstance(node.value, (int, float)):
+                return float(node.value)
+            raise ValueError("Dozvoljeni su samo brojevi")
+        if isinstance(node, ast.Num):  # older AST node
+            return float(node.n)
+        # sve ostalo odbijemo
+        raise ValueError("Nevažeći element u izrazu")
+
+    result = _eval(tree)
+    return result
+
+# --- GUI kalkulator ---
+class Digitron(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Digitron")
+        self.resizable(False, False)
+        self.configure(padx=8, pady=8)
+
+        self.expr = tk.StringVar()
+        # Font
+        self.display_font = font.Font(size=18)
+        self.btn_font = font.Font(size=14)
+
+        # Display
+        entry = tk.Entry(self, textvariable=self.expr, font=self.display_font, justify='right', bd=6, relief='ridge', width=18)
+        entry.grid(row=0, column=0, columnspan=4, pady=(0, 8))
+        entry.bind("<Return>", lambda e: self.on_equals())
+        entry.focus_set()
+
+        # Buttons layout
+        buttons = [
+            ('C', 1, 0, self.on_clear),
+            ('⌫', 1, 1, self.on_backspace),
+            ('%', 1, 2, lambda: self.on_button('%')),
+            ('/', 1, 3, lambda: self.on_button('/')),
+            ('7', 2, 0, lambda: self.on_button('7')),
+            ('8', 2, 1, lambda: self.on_button('8')),
+            ('9', 2, 2, lambda: self.on_button('9')),
+            ('*', 2, 3, lambda: self.on_button('*')),
+            ('4', 3, 0, lambda: self.on_button('4')),
+            ('5', 3, 1, lambda: self.on_button('5')),
+            ('6', 3, 2, lambda: self.on_button('6')),
+            ('-', 3, 3, lambda: self.on_button('-')),
+            ('1', 4, 0, lambda: self.on_button('1')),
+            ('2', 4, 1, lambda: self.on_button('2')),
+            ('3', 4, 2, lambda: self.on_button('3')),
+            ('+', 4, 3, lambda: self.on_button('+')),
+            ('+/-', 5, 0, self.on_plus_minus),
+            ('0', 5, 1, lambda: self.on_button('0')),
+            (',', 5, 2, lambda: self.on_button(',')),
+            ('=', 5, 3, self.on_equals),
+        ]
+
+        for (txt, r, c, cmd) in buttons:
+            b = tk.Button(self, text=txt, width=4, height=2, command=cmd, font=self.btn_font)
+            b.grid(row=r, column=c, padx=4, pady=4, sticky='nsew')
+
+        # keyboard bindings
+        for key in "0123456789+-*/().%":
+            self.bind(key, lambda e, ch=key: self.on_button(ch))
+        self.bind("<BackSpace>", lambda e: self.on_backspace())
+        self.bind("<Return>", lambda e: self.on_equals())
+        self.bind(",", lambda e: self.on_button(','))
+
+    def on_button(self, ch):
+        cur = self.expr.get()
+        self.expr.set(cur + ch)
+
+    def on_clear(self):
+        self.expr.set('')
+
+    def on_backspace(self):
+        cur = self.expr.get()
+        self.expr.set(cur[:-1])
+
+    def on_plus_minus(self):
+        cur = self.expr.get().strip()
+        if not cur:
+            return
+        # pokušaj da obrnemo predznak poslednjeg broja u izrazu
+        # jednostavna heuristika: nađi poslednju komponentu razdvojenu operatorima
+        import re
+        parts = re.split(r'([+\-*/%//()])', cur)
+        # pronađi poslednju nenull komponentu
+        for i in range(len(parts)-1, -1, -1):
+            if parts[i] and not re.match(r'[+\-*/%//()]+', parts[i]):
+                num = parts[i]
+                # ukloni eventualne zagrade oko broja
+                try:
+                    val = float(num.replace(',', '.'))
+                except:
+                    return
+                if val == 0:
+                    return
+                # promeni znak
+                if num.startswith('-'):
+                    parts[i] = num[1:]
+                else:
+                    parts[i] = '-' + num
+                break
+        self.expr.set(''.join(parts))
+
+    def on_equals(self):
+        expression = self.expr.get().strip()
+        if not expression:
+            return
+        try:
+            res = safe_eval(expression)
+            # formatiraj izlaz: ukloni nepotrebne decimale ako ceo broj
+            if abs(res - round(res)) < 1e-12:
+                res_str = str(int(round(res)))
+            else:
+                res_str = str(res)
+            self.expr.set(res_str)
+        except Exception as e:
+            self.expr.set("Greška")
+            # očistimo posle kratkog vremena? (ne automatski ovde)
+            # print(e)  # za debug
+
+if __name__ == "__main__":
+    app = Digitron()
+    app.mainloop()
