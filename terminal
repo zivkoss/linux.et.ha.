@@ -229,6 +229,10 @@ apt-get -y install php unzip git wget
 
 
 
+sudo apt update && sudo apt install proxychains4 tor -y
+
+
+
 
 
   
